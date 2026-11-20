@@ -15,10 +15,10 @@ use std::time::Duration;
 /// How often a running copy asks GitHub for a newer release.
 pub const CHECK_INTERVAL: Duration = Duration::from_secs(2 * 60 * 60);
 
-/// Zeus's releases, signed with Zeus's own key, so a Zeus copy never takes a
-/// ZapFast release or the other way round. The repository is its name as
-/// GitHub has it now: download links must match it exactly, so a rename
-/// leaves installed copies unable to update until they get it.
+const WINDOWS_ARM64: bool = cfg!(all(target_os = "windows", target_arch = "aarch64"));
+
+/// Each release channel pins its GitHub repository and signing key. Download
+/// links must use the repository's canonical name on GitHub.
 pub const CONFIG: UpdateConfig = UpdateConfig {
     // The bundle packaging/macos/bundle-zeus.sh makes.
     macos: MacConfig {
@@ -26,9 +26,17 @@ pub const CONFIG: UpdateConfig = UpdateConfig {
         executable_names: &[],
         legacy_bundle_names: &[],
     },
-    publisher_key: Some(include_str!("../assets/zeus-update-public-key.hex")),
+    publisher_key: Some(if WINDOWS_ARM64 {
+        include_str!("../assets/zeus-arm64-update-public-key.hex")
+    } else {
+        include_str!("../assets/zeus-update-public-key.hex")
+    }),
     ..UpdateConfig::new(
-        "ItIsNotKeshav/Zeus",
+        if WINDOWS_ARM64 {
+            "emmarrem/Zeus-Windows-Arm64"
+        } else {
+            "ItIsNotKeshav/Zeus"
+        },
         crate::brand::NAME,
         crate::brand::ID,
         env!("CARGO_PKG_VERSION"),

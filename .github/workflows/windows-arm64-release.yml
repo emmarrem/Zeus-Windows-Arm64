@@ -6,7 +6,10 @@ on:
     - cron: '23 * * * *'
   push:
     branches: [main]
-    paths: ['.github/workflows/windows-arm64-release.yml']
+    paths:
+      - .github/workflows/windows-arm64-release.yml
+      - packaging/windows/arm64-updates.patch
+      - assets/zeus-arm64-update-public-key.hex
 
 permissions:
   contents: read
@@ -18,16 +21,17 @@ concurrency:
 env:
   UPSTREAM: ItIsNotKeshav/Zeus
   TARGET: aarch64-pc-windows-msvc
+  UPDATE_KEY: assets/zeus-arm64-update-public-key.hex
 
 jobs:
   discover:
-    if: github.repository == 'emmarrem/Zeus-Windows-Arm64'
+    if: github.repository == 'emmarrem/Zeus-Windows-Arm64' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.upstream.outputs.tag }}
       commit: ${{ steps.upstream.outputs.commit }}
     steps:
-      - name: Find an unpublished upstream stable release
+      - name: Find an upstream stable release that needs a signed installer
         id: upstream
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,9 +48,10 @@ jobs:
           if jq -e --arg tag "$tag" --arg asset "$asset" '
             flatten | any(.tag_name == $tag and .draft == false and .prerelease == false
               and any(.assets[]; .name == $asset and .state == "uploaded")
-              and any(.assets[]; .name == "checksums.txt" and .state == "uploaded"))
+              and any(.assets[]; .name == "checksums.txt" and .state == "uploaded")
+              and any(.assets[]; .name == "checksums.txt.sig" and .state == "uploaded" and .size == 64))
           ' <<< "$releases" >/dev/null; then
-            echo "$tag is already published with its ARM64 installer and checksum."
+            echo "$tag is already published with its signed ARM64 installer."
             exit 0
           fi
 
@@ -71,6 +76,21 @@ jobs:
           repository: ${{ env.UPSTREAM }}
           ref: ${{ needs.discover.outputs.commit }}
           persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: fork-release
+          persist-credentials: false
+          sparse-checkout: |
+            assets/zeus-arm64-update-public-key.hex
+            packaging/windows/arm64-updates.patch
+          sparse-checkout-cone-mode: false
+
+      - name: Configure the fork's signed update channel
+        run: |
+          git apply --ignore-space-change fork-release/packaging/windows/arm64-updates.patch
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item -LiteralPath "fork-release/$env:UPDATE_KEY" -Destination $env:UPDATE_KEY
 
       - name: Build Zeus with the native ARM64 toolchain
         run: |
@@ -123,6 +143,12 @@ jobs:
             $pe.Dispose()
           }
 
+          $payload = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($installed))
+          $updateKey = (Get-Content -Raw -LiteralPath $env:UPDATE_KEY).Trim()
+          if (-not $payload.Contains($env:GITHUB_REPOSITORY) -or -not $payload.Contains($updateKey)) {
+            throw 'Installed Zeus does not contain the fork update channel and public key'
+          }
+
           $stdout = "$env:RUNNER_TEMP\zeus-version.txt"
           $probe = Start-Process -FilePath $installed -ArgumentList '--version' -WindowStyle Hidden `
             -RedirectStandardOutput $stdout -Wait -PassThru
@@ -149,17 +175,47 @@ jobs:
       TAG: ${{ needs.discover.outputs.tag }}
       SOURCE_COMMIT: ${{ needs.discover.outputs.commit }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: fork-release
+          persist-credentials: false
+          sparse-checkout: assets/zeus-arm64-update-public-key.hex
+          sparse-checkout-cone-mode: false
+
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: zeus-windows-arm64
           path: dist
 
-      - name: Publish as the latest stable release
+      - name: Sign and verify the installer checksum
+        shell: bash
+        env:
+          SIGNING_KEY: ${{ secrets.ZEUS_ARM64_UPDATE_SIGNING_KEY }}
         run: |
           asset="zeus-$TAG-$TARGET-setup.exe"
           test -s "dist/$asset"
-          (cd dist && sha256sum --check --strict checksums.txt)
+          [[ $(cat dist/checksums.txt) == "$(cd dist && sha256sum "$asset")" ]]
+          if [[ -z $SIGNING_KEY ]]; then
+            echo 'ZEUS_ARM64_UPDATE_SIGNING_KEY is missing.' >&2
+            exit 1
+          fi
+          public_key="$RUNNER_TEMP/zeus-arm64-update-key.pem"
+          openssl pkey -in <(printf '%s\n' "$SIGNING_KEY") -pubout -out "$public_key"
+          actual=$(openssl pkey -pubin -in "$public_key" -outform DER | tail -c 32 | od -An -tx1 | tr -d ' \n')
+          expected=$(tr -d '[:space:]' < "fork-release/$UPDATE_KEY")
+          if [[ ! $expected =~ ^[0-9a-f]{64}$ || $actual != "$expected" ]]; then
+            echo 'The signing secret does not match the embedded public key.' >&2
+            exit 1
+          fi
+          openssl pkeyutl -sign -inkey <(printf '%s\n' "$SIGNING_KEY") -rawin \
+            -in dist/checksums.txt -out dist/checksums.txt.sig
+          test "$(wc -c < dist/checksums.txt.sig)" -eq 64
+          openssl pkeyutl -verify -pubin -inkey "$public_key" -rawin \
+            -in dist/checksums.txt -sigfile dist/checksums.txt.sig
 
+      - name: Publish as the latest stable release
+        run: |
+          asset="zeus-$TAG-$TARGET-setup.exe"
           # Preserve the exact upstream tag, without merging upstream into the fork's main branch.
           git init --quiet
           gh auth setup-git --hostname github.com
@@ -173,16 +229,16 @@ jobs:
           cat > "$notes" <<EOF
           Native Windows ARM64 build of Zeus $TAG for Snapdragon and other Windows on Arm devices.
 
-          Download and run \`$asset\`. See \`checksums.txt\` for the installer's SHA-256 checksum.
+          Download and run \`$asset\` for your first installation or to switch an older copy to this fork's update channel. The installer uses your existing Zeus installation and settings.
 
-          For future ARM64 updates, download the new installer from this fork's Releases page and run it over your existing installation.
+          Once you install this build, future signed releases appear in Zeus under **Settings → General → About**. Zeus verifies \`checksums.txt.sig\` before downloading the installer.
 
-          [Upstream release notes](https://github.com/$UPSTREAM/releases/tag/$TAG) · [Source commit](https://github.com/$UPSTREAM/commit/$SOURCE_COMMIT)
+          [Upstream release notes](https://github.com/$UPSTREAM/releases/tag/$TAG) · [Upstream source](https://github.com/$UPSTREAM/commit/$SOURCE_COMMIT) · [ARM64 update configuration](https://github.com/$GITHUB_REPOSITORY/commit/$GITHUB_SHA)
           EOF
 
           if ! jq -e --arg tag "$TAG" 'flatten | any(.tag_name == $tag)' <<< "$releases" >/dev/null; then
             gh release create "$TAG" --verify-tag --draft --title "Zeus $TAG for Windows ARM64" --notes-file "$notes"
           fi
-          gh release upload "$TAG" "dist/$asset" dist/checksums.txt --clobber
-          gh release edit "$TAG" --draft=false --prerelease=false --latest
+          gh release upload "$TAG" "dist/$asset" dist/checksums.txt dist/checksums.txt.sig --clobber
+          gh release edit "$TAG" --draft=false --prerelease=false --latest --notes-file "$notes"
           gh release view "$TAG" --json url,isDraft,isPrerelease,assets

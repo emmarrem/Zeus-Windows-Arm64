@@ -97,7 +97,7 @@ locked chats, an app lock, and tray notifications, in ten languages.
 
 ## Install
 
-This fork checks for new [Zeus stable releases](https://github.com/ItIsNotKeshav/Zeus/releases) hourly and publishes a native installer for Windows on Arm. For an ARM64 update, run the newer installer over your existing installation. The [release workflow](https://github.com/emmarrem/Zeus-Windows-Arm64/actions/workflows/windows-arm64-release.yml) can also be run manually.
+This fork checks for new [Zeus stable releases](https://github.com/ItIsNotKeshav/Zeus/releases) hourly and publishes signed updates for Windows on Arm. Install the ARM64 build once to set up this fork's update channel, including if you already installed an earlier copy of Zeus. After that, check for updates in **Settings → General → About** and install them from Zeus. The [release workflow](https://github.com/emmarrem/Zeus-Windows-Arm64/actions/workflows/windows-arm64-release.yml) can also be run manually.
 
 | Platform | How |
 |---|---|

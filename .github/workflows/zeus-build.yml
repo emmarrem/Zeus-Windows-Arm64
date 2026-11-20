@@ -35,6 +35,8 @@ env:
 jobs:
   build:
     name: ${{ matrix.target }}
+    # The fork publishes Windows ARM64 through windows-arm64-release.yml.
+    if: github.repository != 'emmarrem/Zeus-Windows-Arm64' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

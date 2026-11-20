@@ -85,6 +85,8 @@ jobs:
 
   test:
     name: test (${{ matrix.os }})
+    # The ARM64 fork builds the stable upstream tag and smoke-tests its installer.
+    if: github.repository != 'emmarrem/Zeus-Windows-Arm64' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     # A cold Windows build passed both suites in 59 minutes, then timed out
     # saving mbx's cache. Leave enough time for that cache to reach later runs.
@@ -146,6 +148,7 @@ jobs:
 
   nix:
     name: Nix package (${{ matrix.system }})
+    if: github.repository != 'emmarrem/Zeus-Windows-Arm64' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     # Uncached, aarch64-darwin takes about 53 minutes, Linux about 22.
     timeout-minutes: 90
