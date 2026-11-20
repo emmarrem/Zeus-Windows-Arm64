@@ -1407,7 +1407,10 @@ fn privacy(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             Icon::Keyboard,
             &gettext(locale, "Show when you are typing"),
-            Some(&gettext(locale, "Let people see when you are writing to them.")),
+            Some(&gettext(
+                locale,
+                "Let people see when you are writing to them.",
+            )),
             &mut typing,
             true,
         ) {
