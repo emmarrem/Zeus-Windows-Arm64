@@ -1196,18 +1196,19 @@ fn separator(ui: &mut egui::Ui, palette: &Palette) {
 }
 
 /// One row of a group: its icon, its name and what it does, and a switch.
-/// Returns whether the switch was flipped. `boxed` keeps the reserved square
-/// the icon used to sit in; without it the icon sits inline, and larger.
+/// Returns whether the switch was flipped. Rows with a description reserve
+/// a square for the icon. Other rows use a larger inline icon.
 fn switch_row(
     ui: &mut egui::Ui,
     palette: &Palette,
     icon: Icon,
     label: &str,
-    description: &str,
+    description: Option<&str>,
     value: &mut bool,
     enabled: bool,
-    boxed: bool,
 ) -> bool {
+    let boxed = description.is_some();
+    let description = description.unwrap_or_default();
     let mut changed = false;
     ui.add_enabled_ui(enabled, |ui| {
         let row = ui
@@ -1298,10 +1299,9 @@ fn notifications(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             Icon::Bell,
             &gettext(locale, "Notifications"),
-            "",
+            None,
             &mut on,
             true,
-            false,
         ) {
             app.account_mut().settings.notifications = on;
             app.account_mut().mark_settings_dirty();
@@ -1316,10 +1316,9 @@ fn notifications(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             Icon::Eye,
             &gettext(locale, "Show message previews"),
-            "",
+            None,
             &mut content,
             on,
-            false,
         ) {
             app.settings.notification_content = content;
             app.actions.push(Action::SettingsChanged);
@@ -1331,10 +1330,9 @@ fn notifications(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             Icon::Volume2,
             &gettext(locale, "Play a sound"),
-            "",
+            None,
             &mut sound,
             on,
-            false,
         ) {
             (app.settings.message_sound, app.settings.mention_sound) = if sound {
                 (NotificationSound::Receive, NotificationSound::Alert)
@@ -1350,10 +1348,9 @@ fn notifications(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             Icon::Monitor,
             &gettext(locale, "Keep running when the window closes"),
-            "",
+            None,
             &mut keep,
             true,
-            false,
         ) {
             app.settings.keep_running_in_background = keep;
             app.actions.push(Action::SettingsChanged);
@@ -1381,10 +1378,9 @@ fn notifications(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 Icon::Clock,
                 &gettext(locale, "Start at login"),
-                "",
+                None,
                 &mut start,
                 true,
-                false,
             ) {
                 app.actions.push(Action::SetStartWithSystem(start));
             }
@@ -1411,9 +1407,8 @@ fn privacy(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             Icon::Keyboard,
             &gettext(locale, "Show when you are typing"),
-            &gettext(locale, "Let people see when you are writing to them."),
+            Some(&gettext(locale, "Let people see when you are writing to them.")),
             &mut typing,
-            true,
             true,
         ) {
             app.account_mut().settings.send_typing = typing;
@@ -1426,12 +1421,11 @@ fn privacy(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             Icon::Download,
             &gettext(locale, "Download files automatically"),
-            &gettext(
+            Some(&gettext(
                 locale,
                 "Files up to 64 MiB download as they come into view.",
-            ),
+            )),
             &mut download,
-            true,
             true,
         ) {
             app.account_mut().settings.auto_download = download;
