@@ -111,6 +111,8 @@ Only the Windows build is tested by the maintainer. The macOS and Linux builds
 are produced by GitHub Actions and are not yet tried on real machines, so
 please report what you find.
 
+On Snapdragon PCs, install Microsoft’s free [OpenCL, OpenGL, and Vulkan Compatibility Pack](https://apps.microsoft.com/detail/9nqpsl29bfff) if Zeus reports an OpenGL error at launch.
+
 ## Link your phone
 
 1. Open Zeus. It shows a QR code.
