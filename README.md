@@ -7,7 +7,8 @@
 <p align="center"><strong>WhatsApp, native and fast.</strong><br>A lightweight desktop WhatsApp client for Windows, macOS, and Linux.</p>
 
 <p align="center">
-  <a href="https://github.com/ItIsNotKeshav/zapfast/releases/latest"><strong>Download</strong></a> ·
+  <a href="https://github.com/ItIsNotKeshav/zapfast/releases/latest"><strong>Upstream downloads</strong></a> ·
+  <a href="https://github.com/emmarrem/Zeus-Windows-Arm64/releases/latest"><strong>Windows ARM64 download</strong></a> ·
   <a href="#install">Install</a> ·
   <a href="#link-your-phone">Link your phone</a> ·
   <a href="#credits">Credits</a>
@@ -96,9 +97,12 @@ locked chats, an app lock, and tray notifications, in ten languages.
 
 ## Install
 
+This fork checks for new [Zeus stable releases](https://github.com/ItIsNotKeshav/Zeus/releases) hourly and publishes a native installer for Windows on Arm. For an ARM64 update, run the newer installer over your existing installation. The [release workflow](https://github.com/emmarrem/Zeus-Windows-Arm64/actions/workflows/windows-arm64-release.yml) can also be run manually.
+
 | Platform | How |
 |---|---|
-| **Windows** | Download `zeus-v<version>-x86_64-pc-windows-msvc-setup.exe` from [Releases](https://github.com/ItIsNotKeshav/zapfast/releases/latest). It installs for your user without administrator rights and updates itself from then on. It is not code-signed, so Windows SmartScreen warns once: choose **More info**, then **Run anyway**. |
+| **Windows on Arm (ARM64)** | Download `zeus-v<version>-aarch64-pc-windows-msvc-setup.exe` from this fork's [latest release](https://github.com/emmarrem/Zeus-Windows-Arm64/releases/latest). It installs for your user without administrator rights. |
+| **Windows (x64)** | Download `zeus-v<version>-x86_64-pc-windows-msvc-setup.exe` from [Releases](https://github.com/ItIsNotKeshav/zapfast/releases/latest). It installs for your user without administrator rights and updates itself from then on. It is not code-signed, so Windows SmartScreen warns once: choose **More info**, then **Run anyway**. |
 | **macOS** | Download the `.tar.gz` for your Mac (Apple Silicon is `aarch64`, Intel is `x86_64`) and run the `zeus` binary. There is no `.app` bundle yet, and the binary is unsigned. |
 | **Linux** | Download the `.tar.gz`, unpack it, and run `zeus`. It includes a desktop entry and icon you can copy into place. |
 | **From source** | Install Rust, then run `cargo build --release --locked`. Linux needs ALSA, PipeWire, and clang headers, and every platform needs cmake. |
