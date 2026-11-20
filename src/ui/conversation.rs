@@ -3331,7 +3331,6 @@ fn messages(app: &mut App, ui: &mut egui::Ui, chat: &Chat, under: f32, over: f32
         std::mem::take(&mut conversation.text_ends),
         &conversation.messages,
     );
-    let pass = ui.ctx().cumulative_pass_nr();
     let redo = ui.ctx().current_pass_index() > 0;
     let mut rows = std::mem::take(&mut conversation.rows);
     // Forget rows that left the conversation, such as deleted messages.

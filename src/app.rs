@@ -14637,18 +14637,18 @@ mod tests {
         use fastframe_shell::{Closed, Resident};
         let ctx = egui::Context::default();
 
-        let mut app = app();
-        app.test_tray_shown = Some(true);
-        app.apply(Action::Quit, &ctx);
-        assert!(app.hide_intent);
-        assert!(!app.quit_requested);
-        assert_eq!(app.closed(), Closed::Hide);
+        let mut with_tray = app();
+        with_tray.test_tray_shown = Some(true);
+        with_tray.apply(Action::Quit, &ctx);
+        assert!(with_tray.hide_intent);
+        assert!(!with_tray.quit_requested);
+        assert_eq!(with_tray.closed(), Closed::Hide);
 
-        let mut app = app();
-        app.test_tray_shown = Some(false);
-        app.apply(Action::Quit, &ctx);
-        assert!(app.quit_requested);
-        assert_eq!(app.closed(), Closed::Quit);
+        let mut without_tray = app();
+        without_tray.test_tray_shown = Some(false);
+        without_tray.apply(Action::Quit, &ctx);
+        assert!(without_tray.quit_requested);
+        assert_eq!(without_tray.closed(), Closed::Quit);
 
         let mut app = app();
         app.test_tray_shown = Some(true);
