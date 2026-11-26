@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: windows-arm64-release
+  group: windows-arm64-${{ inputs.validate_current && 'validation' || 'release' }}
   cancel-in-progress: false
 
 env:
