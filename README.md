@@ -16,9 +16,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Built_with-Rust-24292f" alt="Built with Rust">
-  <img src="https://img.shields.io/badge/Windows_%C2%B7_macOS_%C2%B7_Linux-24292f" alt="Windows, macOS, and Linux">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-24292f" alt="MIT license"></a>
-  <a href="https://github.com/ItIsNotKeshav/Zeus/releases"><img src="https://img.shields.io/github/downloads/ItIsNotKeshav/Zeus/total?label=Downloads&color=24292f" alt="Total downloads"></a>
 </p>
 
 Zeus is a fork of [ZapFast](https://github.com/crmne/zapfast) by
@@ -29,51 +27,6 @@ does, and keeps your chats in an encrypted archive on your own computer.
 
 <p align="center">
   <img src="docs/readme/chat-dark.png" alt="Zeus in its Dark theme on a MacBook, showing a conversation with a photo, a file, voice messages, a quoted reply, and a link preview">
-</p>
-
-<p align="center"><em>The screenshots use made-up demo chats, never real conversations.</em></p>
-
-## Your look
-
-20 ready-made themes, each in light and dark, or your own mix of look, mode
-and accent. Frosted panels with blur you can switch off, and doodle wallpapers
-in several styles.
-
-<p align="center">
-  <img src="docs/readme/chat-light.png" alt="Zeus's Light theme" width="49%">
-  <img src="docs/readme/chat-dracula.png" alt="Zeus with the Dracula theme" width="49%">
-</p>
-<p align="center">
-  <img src="docs/readme/chat-catppuccin.png" alt="Zeus with the Catppuccin theme" width="49%">
-  <img src="docs/readme/chat-tokyo-night.png" alt="Zeus with the Tokyo Night theme" width="49%">
-</p>
-<p align="center">
-  <img src="docs/readme/chat-messages.png" alt="Zeus with the Messages look, with its own bubble shapes" width="49%">
-  <img src="docs/readme/doodles.png" alt="Zeus in the Light theme with accent-coloured travel doodles" width="49%">
-</p>
-
-## Chats that feel good
-
-Frosted composer, attachment previews while files send, reactions you can pick
-from the message, and a message menu with Reply, Edit, Forward, Pin and more.
-
-<p align="center">
-  <img src="docs/readme/composer.png" alt="Zeus's composer with its attachment and poll menu open" width="49%">
-  <img src="docs/readme/reactions.png" alt="Zeus's reaction picker and messages with reactions" width="49%">
-</p>
-
-## Settings
-
-A sidebar of categories with search. Appearance, Chats, Notifications, Calls
-and voice (pick your microphone, push to talk), Privacy, and more.
-
-<p align="center">
-  <img src="docs/readme/settings-appearance.png" alt="Zeus Settings, Appearance: look, mode, accent and blur" width="49%">
-  <img src="docs/readme/settings-chats.png" alt="Zeus Settings, Chats, in the Light theme" width="49%">
-</p>
-<p align="center">
-  <img src="docs/readme/settings-notifications.png" alt="Zeus Settings, Notifications, in the Dracula theme" width="49%">
-  <img src="docs/readme/settings-calls.png" alt="Zeus Settings, Calls and voice: microphone and push to talk" width="49%">
 </p>
 
 ## What Zeus is
@@ -102,16 +55,8 @@ This fork checks for new [Zeus stable releases](https://github.com/ItIsNotKeshav
 | Platform | How |
 |---|---|
 | **Windows on Arm (ARM64)** | Download `zeus-v<version>-aarch64-pc-windows-msvc-setup.exe` from this fork's [latest release](https://github.com/emmarrem/Zeus-Windows-Arm64/releases/latest). It installs for your user without administrator rights. |
-| **Windows (x64)** | Download `zeus-v<version>-x86_64-pc-windows-msvc-setup.exe` from [Releases](https://github.com/ItIsNotKeshav/zapfast/releases/latest). It installs for your user without administrator rights and updates itself from then on. It is not code-signed, so Windows SmartScreen warns once: choose **More info**, then **Run anyway**. |
-| **macOS** | Download the `.tar.gz` for your Mac (Apple Silicon is `aarch64`, Intel is `x86_64`) and run the `zeus` binary. There is no `.app` bundle yet, and the binary is unsigned. |
-| **Linux** | Download the `.tar.gz`, unpack it, and run `zeus`. It includes a desktop entry and icon you can copy into place. |
-| **From source** | Install Rust, then run `cargo build --release --locked`. Linux needs ALSA, PipeWire, and clang headers, and every platform needs cmake. |
 
-Only the Windows build is tested by the maintainer. The macOS and Linux builds
-are produced by GitHub Actions and are not yet tried on real machines, so
-please report what you find.
-
-Zeus 0.44.1 and newer ARM64 builds use DirectX 12 on Snapdragon PCs. Frosted glass effects use solid surfaces. For older builds that report an OpenGL error, install Microsoft's free [OpenCL, OpenGL, and Vulkan Compatibility Pack](https://apps.microsoft.com/detail/9nqpsl29bfff).
+On Snapdragon PCs, install Microsoft’s free [OpenCL, OpenGL, and Vulkan Compatibility Pack](https://apps.microsoft.com/detail/9nqpsl29bfff) if Zeus reports an OpenGL error at launch.
 
 ## Link your phone
 
