@@ -1,0 +1,120 @@
+diff --git a/src/backdrop.rs b/src/backdrop.rs
+index 2d17b89..366756e 100644
+--- a/src/backdrop.rs
++++ b/src/backdrop.rs
+@@ -42,10 +42,8 @@ pub fn glass() -> f32 {
+ /// surfaces, as the Blur switch's Off did.
+ ///
+-/// Never on macOS: it draws with Metal through egui-wgpu, which paints a
+-/// frame in one render pass that a paint callback cannot read back, and the
+-/// frost (`ui/glass.rs`) blurs what is already drawn. The window's material
+-/// still follows Settings there (`Settings::vibrant_window`).
++/// Metal on macOS and DirectX 12 on Windows ARM64 draw through egui-wgpu.
++/// Its paint callbacks cannot read back the frame for the OpenGL frost.
+ pub fn blur() -> bool {
+-    !cfg!(target_os = "macos") && glass() < 1.0
++    !cfg!(any(target_os = "macos", all(windows, target_arch = "aarch64"))) && glass() < 1.0
+ }
+ 
+@@ -115,5 +113,6 @@ pub fn active() -> bool {
+ /// open turns translucent from the next one.
+ pub fn transparent_window(messages: bool, see_through: bool) -> bool {
+-    (messages && platform::may_show_through()) || (see_through && cfg!(target_os = "linux"))
++    !cfg!(all(windows, target_arch = "aarch64"))
++        && ((messages && platform::may_show_through()) || (see_through && cfg!(target_os = "linux")))
+ }
+ 
+diff --git a/src/backend/worker/calls.rs b/src/backend/worker/calls.rs
+index 357d215..3b261ef 100644
+--- a/src/backend/worker/calls.rs
++++ b/src/backend/worker/calls.rs
+@@ -1357,8 +1357,10 @@ async fn discover_devices() -> calls::DeviceList {
+ }
+ 
+-/// What the window says when the call service refused a group call we started. The plain words
+-/// are a catalog key the window translates; any other refusal keeps the generic failure.
++/// What the window says when the call service refused a group call we started.
+ fn group_refusal_text(refusal: &calls::GroupRefusal) -> String {
+-    if refusal.not_enabled {
++    if refusal.detail.ends_with("group offer rejected with error 411") {
++        "WhatsApp rejected the group call (411). Start it on your phone or ask someone in the group to start it."
++            .to_owned()
++    } else if refusal.not_enabled {
+         calls::GROUP_CALLS_NOT_ENABLED.to_owned()
+     } else {
+@@ -1394,4 +1396,15 @@ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn a_group_call_rejected_with_411_offers_an_alternative() {
++        let refusal = calls::GroupRefusal::of(
++            &whatsapp_rust::CallError::Response("group offer rejected with error 411".to_owned()),
++            None,
++        );
++        let text = group_refusal_text(&refusal);
++        assert!(text.contains("WhatsApp rejected the group call (411)"));
++        assert!(text.contains("Start it on your phone"));
++    }
++
+     /// A call that rang here and whose end never arrived must not keep the account busy: the next
+     /// offer would be refused at once, and the caller would hear one ring and the call drop.
+diff --git a/src/main.rs b/src/main.rs
+index bab1366..5445bb3 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -599,4 +599,8 @@ fn is_contained(thread: Option<&str>) -> bool {
+ #[cfg(windows)]
+ fn is_graphics_failure(error: &eframe::Error) -> bool {
++    #[cfg(target_arch = "aarch64")]
++    if matches!(error, eframe::Error::Wgpu(_)) {
++        return true;
++    }
+     matches!(
+         error,
+@@ -609,5 +613,8 @@ fn is_graphics_failure(error: &eframe::Error) -> bool {
+ #[cfg(any(windows, test))]
+ fn startup_failure_text(graphics: bool, details: &str, log: &std::path::Path) -> String {
+-    let summary = if graphics {
++    let summary = if graphics && cfg!(all(windows, target_arch = "aarch64")) {
++        "Zeus could not initialize DirectX 12. Update your graphics driver through Windows Update \
++         or your PC manufacturer's support site, then try again."
++    } else if graphics {
+         "Zeus could not start because the graphics driver does not offer \
+          OpenGL 2.1 or newer, which Zeus needs to draw its window.\n\n\
+@@ -736,4 +743,8 @@ fn native_options(
+         #[cfg(target_os = "macos")]
+         wgpu_options: metal_options(),
++        #[cfg(all(windows, target_arch = "aarch64"))]
++        renderer: eframe::Renderer::Wgpu,
++        #[cfg(all(windows, target_arch = "aarch64"))]
++        wgpu_options: dx12_options(),
+         ..Default::default()
+     }
+@@ -759,4 +770,16 @@ fn metal_options() -> eframe::egui_wgpu::WgpuConfiguration {
+ }
+ 
++/// Windows on Arm can draw through DirectX 12 without an OpenGL driver.
++#[cfg(all(windows, target_arch = "aarch64"))]
++fn dx12_options() -> eframe::egui_wgpu::WgpuConfiguration {
++    use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
++    let mut setup = WgpuSetupCreateNew::without_display_handle();
++    setup.instance_descriptor.backends = eframe::wgpu::Backends::DX12;
++    WgpuConfiguration {
++        wgpu_setup: WgpuSetup::CreateNew(setup),
++        ..Default::default()
++    }
++}
++
+ /// eframe adapter holding the long-lived [`app::App`] for one window; it goes
+ /// back to the shell when the window closes.
+@@ -1351,5 +1374,9 @@ mod startup_failure_tests {
+             log,
+         );
+-        assert!(text.contains("OpenGL 2.1 or newer"));
++        if cfg!(all(windows, target_arch = "aarch64")) {
++            assert!(text.contains("DirectX 12"));
++        } else {
++            assert!(text.contains("OpenGL 2.1 or newer"));
++        }
+         assert!(text.contains("graphics driver"));
+         assert!(text.contains("ES context with wgl is not present"));
