@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/windows-arm64-release.yml
+      - packaging/windows/arm64-runtime.patch
       - packaging/windows/arm64-updates.patch
       - assets/zeus-arm64-update-public-key.hex
 
@@ -83,13 +84,15 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             assets/zeus-arm64-update-public-key.hex
+            packaging/windows/arm64-runtime.patch
             packaging/windows/arm64-updates.patch
           sparse-checkout-cone-mode: false
 
-      - name: Configure the fork's signed update channel
+      - name: Apply the Windows ARM64 runtime and update changes
         run: |
-          git apply --ignore-space-change fork-release/packaging/windows/arm64-updates.patch
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git apply --ignore-space-change fork-release/packaging/windows/arm64-runtime.patch `
+            fork-release/packaging/windows/arm64-updates.patch
+          if ($LASTEXITCODE -ne 0) { throw "The ARM64 patches could not be applied to upstream $env:TAG" }
           Copy-Item -LiteralPath "fork-release/$env:UPDATE_KEY" -Destination $env:UPDATE_KEY
 
       - name: Build Zeus with the native ARM64 toolchain
@@ -112,7 +115,7 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $toolchain -notcontains "host: $env:TARGET") {
             throw "Expected a native Rust host for $env:TARGET"
           }
-          cargo build --locked --release --features demo --target $env:TARGET
+          cargo build --locked --release --features demo,eframe/wgpu --target $env:TARGET
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Package and smoke-test the ARM64 installer
@@ -155,6 +158,22 @@ jobs:
           if ($probe.ExitCode -ne 0 -or (Get-Content $stdout -Raw).Trim() -ne "zeus $version") {
             throw "Installed Zeus did not report version $version"
           }
+
+          $shot = "$env:RUNNER_TEMP\zeus-arm64-render.png"
+          $render = Start-Process -FilePath $installed -WindowStyle Hidden -PassThru `
+            -ArgumentList @('--demo-shot', ('"' + $shot + '"'), '--demo-size', '800x600')
+          if (-not $render.WaitForExit(45000)) {
+            if (-not $render.HasExited) { $render.Kill(); $render.WaitForExit() }
+            throw 'The installed ARM64 Zeus did not finish rendering its DirectX 12 demo'
+          }
+          if ($render.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $shot -PathType Leaf)) {
+            throw "The installed ARM64 Zeus failed the DirectX 12 render check (exit $($render.ExitCode))"
+          }
+          $png = [IO.File]::ReadAllBytes($shot)
+          if ($png.Length -lt 1024 -or [Convert]::ToHexString($png, 0, 8) -ne '89504E470D0A1A0A') {
+            throw 'The DirectX 12 demo did not produce a valid PNG'
+          }
+          Write-Host 'Installed ARM64 Zeus rendered its offline demo using DirectX 12.'
 
           $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $setup).Hash.ToLowerInvariant()
           "$hash  $name`n" | Set-Content -Encoding ascii -NoNewline dist/checksums.txt
@@ -216,13 +235,6 @@ jobs:
       - name: Publish as the latest stable release
         run: |
           asset="zeus-$TAG-$TARGET-setup.exe"
-          # Preserve the exact upstream tag, without merging upstream into the fork's main branch.
-          git init --quiet
-          gh auth setup-git --hostname github.com
-          git fetch --no-tags "https://github.com/$UPSTREAM.git" "refs/tags/$TAG:refs/tags/$TAG"
-          test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$SOURCE_COMMIT"
-          git push "https://github.com/$GITHUB_REPOSITORY.git" "refs/tags/$TAG:refs/tags/$TAG"
-
           export GH_REPO="$GITHUB_REPOSITORY"
           releases=$(gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100")
           notes=$(mktemp)
@@ -233,12 +245,25 @@ jobs:
 
           Once you install this build, future signed releases appear in Zeus under **Settings → General → About**. Zeus verifies \`checksums.txt.sig\` before downloading the installer.
 
-          [Upstream release notes](https://github.com/$UPSTREAM/releases/tag/$TAG) · [Upstream source](https://github.com/$UPSTREAM/commit/$SOURCE_COMMIT) · [ARM64 update configuration](https://github.com/$GITHUB_REPOSITORY/commit/$GITHUB_SHA)
+          This ARM64 build uses DirectX 12. Frosted glass effects use solid surfaces on this renderer.
+
+          The GitHub release tag points to the fork's main branch. The installer is built from the exact upstream source linked below, with this fork's ARM64 patches.
+
+          [Upstream release notes](https://github.com/$UPSTREAM/releases/tag/$TAG) · [Upstream source](https://github.com/$UPSTREAM/commit/$SOURCE_COMMIT) · [ARM64 build configuration](https://github.com/$GITHUB_REPOSITORY/commit/$GITHUB_SHA) · [Build log](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
           EOF
 
           if ! jq -e --arg tag "$TAG" 'flatten | any(.tag_name == $tag)' <<< "$releases" >/dev/null; then
-            gh release create "$TAG" --verify-tag --draft --title "Zeus $TAG for Windows ARM64" --notes-file "$notes"
+            # GitHub can create a release tag on the fork's default branch with contents: write.
+            gh release create "$TAG" --target "$GITHUB_REF_NAME" --draft \
+              --title "Zeus $TAG for Windows ARM64" --notes-file "$notes"
           fi
           gh release upload "$TAG" "dist/$asset" dist/checksums.txt dist/checksums.txt.sig --clobber
           gh release edit "$TAG" --draft=false --prerelease=false --latest --notes-file "$notes"
-          gh release view "$TAG" --json url,isDraft,isPrerelease,assets
+          latest=$(gh api "repos/$GH_REPO/releases/latest")
+          jq -e --arg tag "$TAG" --arg asset "$asset" '
+            select(.tag_name == $tag and .draft == false and .prerelease == false
+              and any(.assets[]; .name == $asset and .state == "uploaded")
+              and any(.assets[]; .name == "checksums.txt" and .state == "uploaded")
+              and any(.assets[]; .name == "checksums.txt.sig" and .state == "uploaded" and .size == 64))
+            | .html_url
+          ' <<< "$latest"
