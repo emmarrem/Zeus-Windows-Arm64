@@ -47,10 +47,10 @@ index e82877b..bb06d6d 100644
      use super::{Mode, Pixel};
 diff --git a/src/camera/windows_arm64.rs b/src/camera/windows_arm64.rs
 new file mode 100644
-index 0000000..0164551
+index 0000000..3f4335d
 --- /dev/null
 +++ b/src/camera/windows_arm64.rs
-@@ -0,0 +1,467 @@
+@@ -0,0 +1,464 @@
 +//! Media Foundation capture on Windows ARM64. Samples stay on the camera
 +//! thread and locked memory never outlives its buffer.
 +
@@ -191,15 +191,6 @@ index 0000000..0164551
 +    Ok(())
 +}
 +
-+struct MediaSource(IMFMediaSource);
-+
-+impl Drop for MediaSource {
-+    fn drop(&mut self) {
-+        // SAFETY: the reader using the source has been released.
-+        let _ = unsafe { self.0.Shutdown() };
-+    }
-+}
-+
 +#[derive(Clone, Copy)]
 +struct Format {
 +    mode: Mode,
@@ -296,7 +287,6 @@ index 0000000..0164551
 +
 +pub struct Camera {
 +    reader: IMFSourceReader,
-+    _source: MediaSource,
 +    _platform: Platform,
 +    format: Format,
 +    contiguous: Vec<u8>,
@@ -320,9 +310,17 @@ index 0000000..0164551
 +            })
 +            .ok_or_else(|| anyhow::anyhow!("camera is no longer available"))?;
 +        // SAFETY: the device, source and reader live on this initialized thread.
-+        let (source, reader, format) = unsafe {
-+            let source = MediaSource(device.ActivateObject()?);
-+            let reader = MFCreateSourceReaderFromMediaSource(&source.0, None::<&IMFAttributes>)?;
++        let (reader, format) = unsafe {
++            let source: IMFMediaSource = device.ActivateObject()?;
++            // A successfully created reader will shut down the source when it
++            // drops. A source with no reader still needs explicit shutdown.
++            let reader = match MFCreateSourceReaderFromMediaSource(&source, None::<&IMFAttributes>) {
++                Ok(reader) => reader,
++                Err(error) => {
++                    let _ = source.Shutdown();
++                    return Err(error.into());
++                }
++            };
 +            reader.SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS.0 as u32, false)?;
 +            reader.SetStreamSelection(VIDEO, true)?;
 +            let mut native = Vec::new();
@@ -346,11 +344,10 @@ index 0000000..0164551
 +            }
 +            let format = Format::from_media_type(&reader.GetCurrentMediaType(VIDEO)?)
 +                .ok_or_else(|| anyhow::anyhow!("camera did not offer a supported pixel format"))?;
-+            (source, reader, format)
++            (reader, format)
 +        };
 +        Ok(Self {
 +            reader,
-+            _source: source,
 +            _platform: platform,
 +            format,
 +            contiguous: Vec::new(),
