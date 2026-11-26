@@ -2,12 +2,18 @@ name: Windows ARM64 release
 
 on:
   workflow_dispatch:
+    inputs:
+      validate_current:
+        description: "Build and test the current upstream release without publishing"
+        type: boolean
+        default: false
   schedule:
     - cron: '23 * * * *'
   push:
     branches: [main]
     paths:
       - .github/workflows/windows-arm64-release.yml
+      - packaging/windows/arm64-call-media.patch
       - packaging/windows/arm64-runtime.patch
       - packaging/windows/arm64-updates.patch
       - assets/zeus-arm64-update-public-key.hex
@@ -23,6 +29,8 @@ env:
   UPSTREAM: ItIsNotKeshav/Zeus
   TARGET: aarch64-pc-windows-msvc
   UPDATE_KEY: assets/zeus-arm64-update-public-key.hex
+  VALIDATION_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_current }}
+  BUILD_PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_current && 'fast' || 'release' }}
 
 jobs:
   discover:
@@ -46,7 +54,7 @@ jobs:
 
           asset="zeus-$tag-$TARGET-setup.exe"
           releases=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100")
-          if jq -e --arg tag "$tag" --arg asset "$asset" '
+          if [[ $VALIDATION_ONLY != true ]] && jq -e --arg tag "$tag" --arg asset "$asset" '
             flatten | any(.tag_name == $tag and .draft == false and .prerelease == false
               and any(.assets[]; .name == $asset and .state == "uploaded")
               and any(.assets[]; .name == "checksums.txt" and .state == "uploaded")
@@ -84,6 +92,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             assets/zeus-arm64-update-public-key.hex
+            packaging/windows/arm64-call-media.patch
             packaging/windows/arm64-runtime.patch
             packaging/windows/arm64-updates.patch
           sparse-checkout-cone-mode: false
@@ -91,6 +100,7 @@ jobs:
       - name: Apply the Windows ARM64 runtime and update changes
         run: |
           git apply --ignore-space-change fork-release/packaging/windows/arm64-runtime.patch `
+            fork-release/packaging/windows/arm64-call-media.patch `
             fork-release/packaging/windows/arm64-updates.patch
           if ($LASTEXITCODE -ne 0) { throw "The ARM64 patches could not be applied to upstream $env:TAG" }
           Copy-Item -LiteralPath "fork-release/$env:UPDATE_KEY" -Destination $env:UPDATE_KEY
@@ -115,13 +125,16 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $toolchain -notcontains "host: $env:TARGET") {
             throw "Expected a native Rust host for $env:TARGET"
           }
-          cargo build --locked --release --features demo,eframe/wgpu --target $env:TARGET
+          cargo test --locked --profile $env:BUILD_PROFILE --features demo,eframe/wgpu `
+            --target $env:TARGET --lib camera::backend::tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --locked --profile $env:BUILD_PROFILE --features demo,eframe/wgpu --target $env:TARGET
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Package and smoke-test the ARM64 installer
         run: |
           $version = $env:TAG.Substring(1)
-          $binary = "$PWD\target\$env:TARGET\release\zeus.exe"
+          $binary = "$PWD\target\$env:TARGET\$env:BUILD_PROFILE\zeus.exe"
           $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
           if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
           & $iscc "/DVersion=$version" '/DArch=aarch64' "/DBinary=$binary" `
@@ -180,12 +193,13 @@ jobs:
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: zeus-windows-arm64
+          name: ${{ inputs.validate_current && 'zeus-windows-arm64-validation' || 'zeus-windows-arm64' }}
           path: dist/
           if-no-files-found: error
 
   publish:
     needs: [discover, build]
+    if: github.event_name != 'workflow_dispatch' || !inputs.validate_current
     runs-on: ubuntu-latest
     permissions:
       contents: write
